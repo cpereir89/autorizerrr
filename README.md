@@ -171,7 +171,7 @@ Autorizerrr supports **multiple low-privileged users** simultaneously, allowing 
 
 ### Per-User Request/Response Viewers
 
-Each configured user gets a **dedicated request/response viewer** on the right side of the table. When you select a row, all visible user viewers update automatically with their respective data. This means you can view User 1 and User 2 responses **side by side** to quickly spot differences in authorization enforcement.
+Each configured user gets a **dedicated request/response viewer** in the bottom comparison panel. When you select a row, all visible user viewers update automatically with their respective data. This means you can view User 1 and User 2 responses **side by side** to quickly spot differences in authorization enforcement.
 
 **Clicking on a user's column cells** (e.g., "User 1 Modif. Len" or "User 1 Authz. Status") will **expand that user's viewer** to full size for a focused inspection. Clicking the **URL column** restores all visible viewers for comparison.
 
@@ -190,6 +190,12 @@ This allows you to customize the right panel to show only the comparisons you ca
 - Hide **Unauthenticated** if you're only testing authorization, not authentication
 
 The visibility selection dynamically adjusts the panel layout, giving more vertical space to the remaining viewers.
+
+---
+## TODO
+
+- Add Firefox container-aware user mapping. Build or integrate with a Firefox extension that lets testers create separate browser containers, similar to Firefox Multi-Account Containers, and inject custom headers based on the active container name. Autorizerrr should read those headers from proxied traffic and automatically map/flag requests to the matching configured user.
+- Add automatic token refresh. Let testers configure a login or token-refresh endpoint, credentials, and token extraction rules. Autorizerrr should refresh expired tokens automatically and update the relevant user headers without manual copy/paste.
 
 ---
 ## Limitations & Notes
