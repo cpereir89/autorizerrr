@@ -16,9 +16,12 @@ from javax.swing import JPanel
 from javax.swing import JButton
 from javax.swing import JToggleButton
 from javax.swing import JLabel
+from javax.swing import JTextField
 from javax.swing import JCheckBoxMenuItem
 from javax.swing import ImageIcon
 from javax.swing.plaf.basic import BasicScrollBarUI
+from javax.swing.text import JTextComponent
+from javax.swing.text import DefaultHighlighter
 from java.awt import FlowLayout
 from java.awt import BorderLayout
 from java.awt import Toolkit
@@ -48,6 +51,7 @@ from javax.swing.event import ChangeListener, ChangeEvent
 from java.awt.event import KeyEvent
 from java.awt.event import InputEvent
 from javax.swing import SwingUtilities
+from javax.swing.event import DocumentListener
 
 class ITabImpl(ITab):
     def __init__(self, extender):
@@ -94,6 +98,46 @@ def styleViewerHorizontalScrollBar(scrollbar):
         scrollbar.setUI(LightHorizontalScrollBarUI())
     except:
         pass
+
+class ViewerSearchDocumentListener(DocumentListener):
+    def __init__(self, extender):
+        self._extender = extender
+
+    def insertUpdate(self, event):
+        self._extender.tabs_instance.applyViewerToolsLater()
+
+    def removeUpdate(self, event):
+        self._extender.tabs_instance.applyViewerToolsLater()
+
+    def changedUpdate(self, event):
+        self._extender.tabs_instance.applyViewerToolsLater()
+
+class ViewerToolAction(ActionListener):
+    def __init__(self, extender):
+        self._extender = extender
+
+    def actionPerformed(self, event):
+        if hasattr(self._extender, 'tabs_instance') and self._extender.tabs_instance:
+            self._extender.tabs_instance.applyViewerToolsLater()
+
+class SyncScrollListener(AdjustmentListener):
+    def __init__(self, extender):
+        self._extender = extender
+
+    def adjustmentValueChanged(self, event):
+        if getattr(self._extender, '_syncing_viewer_scroll', False):
+            return
+        if not hasattr(self._extender, 'syncViewsButton') or not self._extender.syncViewsButton.isSelected():
+            return
+
+        source = event.getAdjustable()
+        self._extender._syncing_viewer_scroll = True
+        try:
+            for scrollbar in self._extender.tabs_instance.getVisibleViewerVerticalScrollBars():
+                if scrollbar != source:
+                    scrollbar.setValue(source.getValue())
+        finally:
+            self._extender._syncing_viewer_scroll = False
 
 class Tabs():
     def __init__(self, extender):
@@ -226,9 +270,26 @@ class Tabs():
         self._extender.requests_scrollpane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER)
         self._extender.requests_scrollpane.getViewport().addComponentListener(ViewerScrollResizeListener(self._extender))
         self._extender.requests_viewer_container = JPanel(BorderLayout())
+        self._extender.requests_tools_panel = JPanel(FlowLayout(FlowLayout.LEFT, 5, 2))
+        self._extender.highlightDiffsButton = JToggleButton("Highlight diffs")
+        self._extender.highlightDiffsButton.setToolTipText("Highlight matching lines in red and different lines in yellow")
+        self._extender.highlightDiffsButton.addActionListener(ViewerToolAction(self._extender))
+        self._extender.syncViewsButton = JToggleButton("Sync views")
+        self._extender.syncViewsButton.setToolTipText("Synchronize vertical scrolling across visible request/response viewers")
+        self._extender.syncViewsButton.addActionListener(ViewerToolAction(self._extender))
+        self._extender.viewerSearchField = JTextField(24)
+        self._extender.viewerSearchField.setToolTipText("Search visible requests and responses")
+        self._extender.viewerSearchField.getDocument().addDocumentListener(ViewerSearchDocumentListener(self._extender))
+        self._extender.requests_tools_panel.add(self._extender.highlightDiffsButton)
+        self._extender.requests_tools_panel.add(self._extender.syncViewsButton)
+        self._extender.requests_tools_panel.add(JLabel("Search"))
+        self._extender.requests_tools_panel.add(self._extender.viewerSearchField)
         self._extender.requests_horizontal_scrollbar = self._extender.requests_scrollpane.getHorizontalScrollBar()
         styleViewerHorizontalScrollBar(self._extender.requests_horizontal_scrollbar)
-        self._extender.requests_viewer_container.add(self._extender.requests_horizontal_scrollbar, BorderLayout.NORTH)
+        self._extender.requests_top_panel = JPanel(BorderLayout())
+        self._extender.requests_top_panel.add(self._extender.requests_tools_panel, BorderLayout.NORTH)
+        self._extender.requests_top_panel.add(self._extender.requests_horizontal_scrollbar, BorderLayout.SOUTH)
+        self._extender.requests_viewer_container.add(self._extender.requests_top_panel, BorderLayout.NORTH)
         self._extender.requests_viewer_container.add(self._extender.requests_scrollpane, BorderLayout.CENTER)
         rebuildViewerPanel(self._extender)
 
@@ -304,6 +365,159 @@ class Tabs():
         if hasattr(self._extender, 'tableModel'):
             self._extender.tableModel.fireTableStructureChanged()
             self.setupDynamicColumns()
+
+    def applyViewerToolsLater(self):
+        SwingUtilities.invokeLater(lambda: self.applyViewerTools())
+
+    def applyViewerTools(self):
+        self.clearViewerHighlights()
+        if hasattr(self._extender, 'highlightDiffsButton') and self._extender.highlightDiffsButton.isSelected():
+            self.highlightViewerDiffs()
+        self.highlightViewerSearch()
+        self.installSyncScrollListeners()
+
+    def clearViewerHighlights(self):
+        for text_component in self.getVisibleViewerTextComponents():
+            try:
+                text_component.getHighlighter().removeAllHighlights()
+            except:
+                pass
+
+    def highlightViewerDiffs(self):
+        if not hasattr(self._extender, '_currentlyDisplayedItem') or not self._extender._currentlyDisplayedItem:
+            return
+
+        original_request = self._extender._helpers.bytesToString(self._extender._currentlyDisplayedItem._originalrequestResponse.getRequest())
+        original_response = self._extender._helpers.bytesToString(self._extender._currentlyDisplayedItem._originalrequestResponse.getResponse())
+
+        for tabs in self.getVisibleViewerTabs():
+            for index in (0, 1):
+                original_text = original_response if index == 1 else original_request
+                for text_component in self.getTextComponents(tabs.getComponentAt(index)):
+                    self.highlightLineComparison(text_component, original_text)
+
+    def highlightLineComparison(self, text_component, original_text):
+        try:
+            text = text_component.getText()
+            highlighter = text_component.getHighlighter()
+            same_painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(255, 170, 170))
+            diff_painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(255, 245, 120))
+            original_lines = original_text.splitlines()
+            lines = text.splitlines(True)
+            offset = 0
+            for index, line in enumerate(lines):
+                clean_line = line.rstrip("\r\n")
+                original_line = original_lines[index] if index < len(original_lines) else None
+                painter = same_painter if clean_line == original_line else diff_painter
+                end = offset + len(line)
+                if end > offset:
+                    highlighter.addHighlight(offset, end, painter)
+                offset = end
+        except:
+            pass
+
+    def highlightViewerSearch(self):
+        if not hasattr(self._extender, 'viewerSearchField'):
+            return
+        search = self._extender.viewerSearchField.getText()
+        if not search:
+            return
+        search_lower = search.lower()
+        painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(255, 0, 255))
+        for text_component in self.getVisibleViewerTextComponents():
+            try:
+                text = text_component.getText()
+                text_lower = text.lower()
+                start = 0
+                while True:
+                    index = text_lower.find(search_lower, start)
+                    if index < 0:
+                        break
+                    text_component.getHighlighter().addHighlight(index, index + len(search), painter)
+                    start = index + len(search)
+            except:
+                pass
+
+    def installSyncScrollListeners(self):
+        if not hasattr(self._extender, '_viewer_sync_listener'):
+            self._extender._viewer_sync_listener = SyncScrollListener(self._extender)
+            self._extender._viewer_sync_scrollbars = []
+
+        listener = self._extender._viewer_sync_listener
+        current = self.getVisibleViewerVerticalScrollBars()
+        for scrollbar in list(getattr(self._extender, '_viewer_sync_scrollbars', [])):
+            if scrollbar not in current:
+                try:
+                    scrollbar.removeAdjustmentListener(listener)
+                except:
+                    pass
+
+        for scrollbar in current:
+            if scrollbar not in getattr(self._extender, '_viewer_sync_scrollbars', []):
+                try:
+                    scrollbar.addAdjustmentListener(listener)
+                except:
+                    pass
+
+        self._extender._viewer_sync_scrollbars = current
+
+    def getVisibleViewerTabs(self):
+        viewer_tabs = []
+        if self._extender.viewer_visibility.get('original', True):
+            viewer_tabs.append(self._extender.original_requests_tabs)
+        if self._extender.viewer_visibility.get('unauthenticated', True):
+            viewer_tabs.append(self._extender.unauthenticated_requests_tabs)
+        if hasattr(self._extender, 'user_viewers'):
+            for user_id in sorted(self._extender.user_viewers.keys()):
+                key = 'user_{}'.format(user_id)
+                if self._extender.viewer_visibility.get(key, True):
+                    viewer_tabs.append(self._extender.user_viewers[user_id]['tabs'])
+        return viewer_tabs
+
+    def getVisibleViewerTextComponents(self):
+        text_components = []
+        for tabs in self.getVisibleViewerTabs():
+            for index in (0, 1):
+                text_components.extend(self.getTextComponents(tabs.getComponentAt(index)))
+        return text_components
+
+    def getTextComponents(self, component):
+        found = []
+        if component is None:
+            return found
+        try:
+            if isinstance(component, JTextComponent) and len(component.getText()) > 0:
+                found.append(component)
+        except:
+            pass
+        try:
+            for child in component.getComponents():
+                found.extend(self.getTextComponents(child))
+        except:
+            pass
+        return found
+
+    def getVisibleViewerVerticalScrollBars(self):
+        scrollbars = []
+        for tabs in self.getVisibleViewerTabs():
+            scrollbars.extend(self.getVerticalScrollBars(tabs.getSelectedComponent()))
+        return scrollbars
+
+    def getVerticalScrollBars(self, component):
+        found = []
+        if component is None:
+            return found
+        try:
+            if isinstance(component, JScrollPane):
+                found.append(component.getVerticalScrollBar())
+        except:
+            pass
+        try:
+            for child in component.getComponents():
+                found.extend(self.getVerticalScrollBars(child))
+        except:
+            pass
+        return found
 
 class SendRequestRepeater(ActionListener):
     def __init__(self, extender, callbacks, original):
@@ -446,6 +660,8 @@ class ViewerTabChangeListener(ChangeListener):
         idx = comp.getSelectedIndex()
         if idx in (0, 1):
             self._extender._viewer_last_content_tab[id(comp)] = idx
+            if hasattr(self._extender, 'tabs_instance') and self._extender.tabs_instance:
+                self._extender.tabs_instance.applyViewerToolsLater()
 
 class Mouseclick(MouseAdapter):
     def __init__(self, extender):

@@ -341,6 +341,8 @@ class Table(JTable):
         self.updateContextMenuText(col)
 
         JTable.changeSelection(self, row, col, toggle, extend)
+        if hasattr(self._extender, 'tabs_instance') and self._extender.tabs_instance:
+            self._extender.tabs_instance.applyViewerToolsLater()
         return
 
     def updateContextMenuText(self, col):
