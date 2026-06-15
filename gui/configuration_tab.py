@@ -11,6 +11,8 @@ from javax.swing import JSplitPane
 from javax.swing import JCheckBox
 from javax.swing import JButton
 from javax.swing import JPanel
+from javax.swing import JLabel
+from javax.swing import JComboBox
 from java.awt import Dimension
 
 from table import UpdateTableEDT
@@ -82,6 +84,11 @@ class ConfigurationTab():
         self._extender.replaceQueryParam = JCheckBox("Replace query params", actionPerformed=self.replaceQueryHanlder)
         self._extender.replaceQueryParam.setBounds(280, 85, 300, 30)
         self._extender.replaceQueryParam.setSelected(False)
+
+        self._extender.highlightPaletteLabel = JLabel("Highlight palette")
+        self._extender.highlightPalette = JComboBox(["Dark theme", "Light theme", "Soft"])
+        self._extender.highlightPalette.setToolTipText("Color palette used by Request/Response Viewer highlights")
+        self._extender.highlightPalette.addActionListener(HighlightPaletteAction(self._extender))
 
         self._extender.filtersTabs = JTabbedPane()
         self._extender.filtersTabs = self._extender.filtersTabs
@@ -158,6 +165,21 @@ class ConfigurationTab():
                             GroupLayout.PREFERRED_SIZE,
                             GroupLayout.PREFERRED_SIZE,
                         )
+                        .addGroup(
+                            layout.createSequentialGroup()
+                                .addComponent(
+                                    self._extender.highlightPaletteLabel,
+                                    GroupLayout.PREFERRED_SIZE,
+                                    GroupLayout.PREFERRED_SIZE,
+                                    GroupLayout.PREFERRED_SIZE,
+                                )
+                                .addComponent(
+                                    self._extender.highlightPalette,
+                                    GroupLayout.PREFERRED_SIZE,
+                                    GroupLayout.PREFERRED_SIZE,
+                                    GroupLayout.PREFERRED_SIZE,
+                                )
+                        )
                     )
             )
         
@@ -210,6 +232,20 @@ class ConfigurationTab():
                         GroupLayout.PREFERRED_SIZE,
                         GroupLayout.PREFERRED_SIZE,
                     )
+                    .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                    .addComponent(
+                        self._extender.highlightPaletteLabel,
+                        GroupLayout.PREFERRED_SIZE,
+                        GroupLayout.PREFERRED_SIZE,
+                        GroupLayout.PREFERRED_SIZE,
+                    )
+                    .addComponent(
+                        self._extender.highlightPalette,
+                        GroupLayout.PREFERRED_SIZE,
+                        GroupLayout.PREFERRED_SIZE,
+                        GroupLayout.PREFERRED_SIZE,
+                    )
+                )
                     .addComponent(
                             self._extender.autoScroll,
                             GroupLayout.PREFERRED_SIZE,
@@ -239,3 +275,11 @@ class ConfigurationTab():
                     user_data['headers_instance'].replaceString.setText("paramName=paramValue")
                 else:
                     user_data['headers_instance'].replaceString.setText(default_text)
+
+class HighlightPaletteAction(ActionListener):
+    def __init__(self, extender):
+        self._extender = extender
+
+    def actionPerformed(self, event):
+        if hasattr(self._extender, 'tabs_instance') and self._extender.tabs_instance:
+            self._extender.tabs_instance.applyViewerToolsLater()

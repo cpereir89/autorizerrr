@@ -83,6 +83,10 @@ class SaveRestore():
                 tempRow = ["CheckBoxes", json.dumps(d)]
                 csvwriter.writerow(tempRow)
 
+                if hasattr(self._extender, 'highlightPalette'):
+                    tempRow = ["HighlightPalette", str(self._extender.highlightPalette.getSelectedItem())]
+                    csvwriter.writerow(tempRow)
+
                 # Request/response list
                 for i in range(0, self._extender._log.size()):
                     logEntry = self._extender._log.get(i)
@@ -208,6 +212,11 @@ class SaveRestore():
                         d = json.loads(row[1])
                         for k in d:
                             getattr(self._extender, k).setSelected(d[k])
+                        continue
+
+                    if row[0] == "HighlightPalette":
+                        if hasattr(self._extender, 'highlightPalette'):
+                            self._extender.highlightPalette.setSelectedItem(row[1])
                         continue
 
                     if row[0] == "RemoveDuplicates":

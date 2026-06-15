@@ -400,8 +400,9 @@ class Tabs():
         try:
             text = text_component.getText()
             highlighter = text_component.getHighlighter()
-            same_painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(95, 58, 58))
-            diff_painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(92, 84, 42))
+            palette = self.getHighlightPalette()
+            same_painter = DefaultHighlighter.DefaultHighlightPainter(palette['same'])
+            diff_painter = DefaultHighlighter.DefaultHighlightPainter(palette['diff'])
             original_lines = original_text.splitlines()
             lines = text.splitlines(True)
             offset = 0
@@ -423,7 +424,8 @@ class Tabs():
         if not search:
             return
         search_lower = search.lower()
-        painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(92, 54, 104))
+        palette = self.getHighlightPalette()
+        painter = DefaultHighlighter.DefaultHighlightPainter(palette['search'])
         for text_component in self.getVisibleViewerTextComponents():
             try:
                 text = text_component.getText()
@@ -437,6 +439,34 @@ class Tabs():
                     start = index + len(search)
             except:
                 pass
+
+    def getHighlightPalette(self):
+        selected = "Dark theme"
+        if hasattr(self._extender, 'highlightPalette'):
+            try:
+                selected = str(self._extender.highlightPalette.getSelectedItem())
+            except:
+                selected = "Dark theme"
+
+        if selected == "Light theme":
+            return {
+                'same': AwtColor(255, 220, 220),
+                'diff': AwtColor(255, 246, 160),
+                'search': AwtColor(242, 190, 255)
+            }
+
+        if selected == "Soft":
+            return {
+                'same': AwtColor(218, 198, 198),
+                'diff': AwtColor(226, 218, 172),
+                'search': AwtColor(222, 198, 230)
+            }
+
+        return {
+            'same': AwtColor(95, 58, 58),
+            'diff': AwtColor(92, 84, 42),
+            'search': AwtColor(92, 54, 104)
+        }
 
     def installSyncScrollListeners(self):
         if not hasattr(self._extender, '_viewer_sync_listener'):
