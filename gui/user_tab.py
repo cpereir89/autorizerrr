@@ -11,6 +11,7 @@ from javax.swing import JScrollPane
 from javax.swing import GroupLayout
 from javax.swing import JSplitPane
 from javax.swing import JTable
+from javax.swing import ListSelectionModel
 from javax.swing.border import LineBorder
 from javax.swing.table import AbstractTableModel
 from javax.swing.table import DefaultTableCellRenderer
@@ -326,7 +327,7 @@ class UserTab():
         self.userSummaryTable = JTable(self.userSummaryModel)
         self.userSummaryTable.setDefaultRenderer(self.userSummaryTable.getColumnClass(0), UserSummaryRenderer(self))
         self.userSummaryTable.setRowSelectionAllowed(True)
-        self.userSummaryTable.setSelectionMode(0)
+        self.userSummaryTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
         self.userSummaryTable.getSelectionModel().addListSelectionListener(UserSummarySelectionListener(self))
         self.userSummaryTable.getColumnModel().getColumn(0).setPreferredWidth(28)
         self.userSummaryTable.getColumnModel().getColumn(0).setMaxWidth(32)
@@ -415,36 +416,31 @@ class UserTab():
         self.refreshTableStructure()
 
     def remove_user(self):
-        if self.userTabs.getTabCount() <= 1:
+        if len(self.user_tabs) <= 1:
             JOptionPane.showMessageDialog(None, "Cannot remove the last user!", "Warning", JOptionPane.WARNING_MESSAGE)
             return
         
-        selected_index = self.userTabs.getSelectedIndex()
+        user_id_to_remove = self.get_selected_user_id()
 
-        if selected_index >= 0:
-            selected_panel = self.userTabs.getComponentAt(selected_index)
+        if user_id_to_remove:
+            selected_index = self.get_row_for_user_id(user_id_to_remove)
+            user_data_to_remove = self.user_tabs.get(user_id_to_remove)
+            user_name_to_remove = user_data_to_remove['user_name'] if user_data_to_remove else None
 
-            user_id_to_remove = None
-            user_name_to_remove = None
-
-            for user_id, user_data in self.user_tabs.items():
-                if user_data['panel'] == selected_panel:
-                    user_id_to_remove = user_id
-                    user_name_to_remove = user_data['user_name']
-                    break
-
-            if user_id_to_remove and user_name_to_remove:
+            if user_name_to_remove:
                 if user_name_to_remove in self.user_names:
                     self.user_names.remove(user_name_to_remove)
 
+                tab_index = self.userTabs.indexOfComponent(user_data_to_remove['panel'])
                 del self.user_tabs[user_id_to_remove]
 
-                self.userTabs.removeTabAt(selected_index)
+                if tab_index >= 0:
+                    self.userTabs.removeTabAt(tab_index)
                 self.refresh_user_summary()
-                next_index = min(selected_index, self.userTabs.getTabCount() - 1)
-                if next_index >= 0:
-                    self.userTabs.setSelectedIndex(next_index)
-                    self.select_user_by_id(self.get_user_id_at_row(next_index))
+                next_index = min(selected_index, len(self.user_tabs) - 1)
+                next_user_id = self.get_user_id_at_row(next_index)
+                if next_user_id:
+                    self.select_user_by_id(next_user_id)
                 else:
                     self.userDetailPanel.removeAll()
                     self.userDetailPanel.revalidate()
@@ -473,25 +469,18 @@ class UserTab():
         self.refresh_user_summary()
         
     def duplicate_user(self):
-        selected_index = self.userTabs.getSelectedIndex()
+        selected_user_id = self.get_selected_user_id()
 
-        if selected_index >= 0:
-            selected_panel = self.userTabs.getComponentAt(selected_index)
-            source_user_data = None
-            
-            for user_id, user_data in self.user_tabs.items():
-                if user_data['panel'] == selected_panel:
-                    source_user_data = user_data
-                    break
-            
-            if source_user_data:
-                self.add_user()
-                new_user_id = self.user_count
-                new_user_data = self.user_tabs[new_user_id]
+        if selected_user_id and selected_user_id in self.user_tabs:
+            source_user_data = self.user_tabs[selected_user_id]
+            self.add_user()
+            new_user_id = self.user_count
+            new_user_data = self.user_tabs[new_user_id]
 
-                self.copy_headers_settings(source_user_data['headers_instance'], new_user_data['headers_instance'])
-                self.copy_ed_settings(source_user_data['ed_instance'], new_user_data['ed_instance'])
-                self.copy_mr_settings(source_user_data['mr_instance'], new_user_data['mr_instance'])
+            self.copy_headers_settings(source_user_data['headers_instance'], new_user_data['headers_instance'])
+            self.copy_ed_settings(source_user_data['ed_instance'], new_user_data['ed_instance'])
+            self.copy_mr_settings(source_user_data['mr_instance'], new_user_data['mr_instance'])
+            self.refresh_user_summary()
     
     def copy_ed_settings(self, source_ed, target_ed):
         target_ed.EDModel.clear()
@@ -524,12 +513,13 @@ class UserTab():
                 target_mr.badProgrammerMRModel[key] = value
                             
     def rename_user(self):
-        selected_index = self.userTabs.getSelectedIndex()
+        user_id = self.get_selected_user_id()
 
-        if selected_index >= 0:
-            current_name = self.userTabs.getTitleAt(selected_index)
-            new_name = JOptionPane.showInputDialog(None, "Enter new name for user:", "Rename User", JOptionPane.QUESTION_MESSAGE, None, None, current_name)
-            
+        if user_id and user_id in self.user_tabs:
+            user_data = self.user_tabs[user_id]
+            current_name = user_data['user_name']
+            new_name = JOptionPane.showInputDialog(None, "Enter new name for user:", current_name)
+
             if new_name and new_name.strip():
                 if current_name in self.user_names:
                     self.user_names.remove(current_name)
@@ -537,19 +527,17 @@ class UserTab():
                 unique_name = self.get_unique_name(new_name.strip())
                 self.user_names.append(unique_name)
 
-                self.userTabs.setTitleAt(selected_index, unique_name)
+                tab_index = self.userTabs.indexOfComponent(user_data['panel'])
+                if tab_index >= 0:
+                    self.userTabs.setTitleAt(tab_index, unique_name)
 
-                selected_panel = self.userTabs.getComponentAt(selected_index)
-
-                for user_id, user_data in self.user_tabs.items():
-                    if user_data['panel'] == selected_panel:
-                        user_data['header_label'].setText(unique_name)
-                        user_data['user_name'] = unique_name
-                        if hasattr(self._extender, 'tabs_instance') and self._extender.tabs_instance:
-                            self._extender.tabs_instance.renameUserViewerTabs(user_id, unique_name)
-                        break
+                user_data['header_label'].setText(unique_name)
+                user_data['user_name'] = unique_name
+                if hasattr(self._extender, 'tabs_instance') and self._extender.tabs_instance:
+                    self._extender.tabs_instance.renameUserViewerTabs(user_id, unique_name)
 
                 self.refresh_user_summary()
+                self.select_user_by_id(user_id)
                 self.refreshTableStructure()
 
     def get_unique_name(self, name):
@@ -588,6 +576,23 @@ class UserTab():
         if user_id in user_ids:
             return user_ids.index(user_id)
         return -1
+
+    def get_selected_user_id(self):
+        if hasattr(self, 'userSummaryTable'):
+            selected = self.userSummaryTable.getSelectedRow()
+            if selected >= 0:
+                model_row = self.userSummaryTable.convertRowIndexToModel(selected)
+                user_id = self.get_user_id_at_row(model_row)
+                if user_id is not None:
+                    return user_id
+
+        selected_index = self.userTabs.getSelectedIndex()
+        if selected_index >= 0:
+            selected_panel = self.userTabs.getComponentAt(selected_index)
+            for user_id, user_data in self.user_tabs.items():
+                if user_data['panel'] == selected_panel:
+                    return user_id
+        return None
 
     def refresh_user_summary(self):
         if hasattr(self, 'userSummaryModel'):
