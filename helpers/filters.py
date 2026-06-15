@@ -69,7 +69,7 @@ def rebuildViewerPanel(extender):
                 visible_count += 1
 
         if visible_count > 0:
-                extender.requests_panel.setLayout(GridLayout(visible_count, 0))
+                extender.requests_panel.setLayout(GridLayout(1, visible_count))
 
         extender.requests_panel.revalidate()
         extender.requests_panel.repaint()

@@ -9,22 +9,232 @@ from javax.swing import JOptionPane
 from javax.swing import JTextArea
 from javax.swing import JScrollPane
 from javax.swing import GroupLayout
+from javax.swing import JSplitPane
+from javax.swing import JTable
 from javax.swing.border import LineBorder
+from javax.swing.table import AbstractTableModel
+from javax.swing.table import DefaultTableCellRenderer
+from javax.swing.event import ListSelectionListener
+from javax.swing.event import DocumentListener
 from java.awt import BorderLayout
 from java.awt import FlowLayout
 from java.awt import Color
 from java.awt import Font
+from java.awt import Dimension
 from java.awt.event import ActionListener
+import base64
+import json
+import re
 
 from gui.enforcement_detector import EnforcementDetectors
 from gui.match_replace import MatchReplace
 
+USER_COLORS = [
+    Color(244, 67, 54),
+    Color(33, 150, 243),
+    Color(76, 175, 80),
+    Color(255, 193, 7),
+    Color(156, 39, 176),
+    Color(0, 188, 212),
+    Color(255, 112, 67),
+    Color(121, 85, 72),
+    Color(63, 81, 181),
+    Color(139, 195, 74),
+    Color(233, 30, 99),
+    Color(0, 150, 136),
+    Color(96, 125, 139),
+    Color(205, 220, 57),
+    Color(103, 58, 183)
+]
+
+def get_user_color(user_id):
+    return USER_COLORS[(user_id - 1) % len(USER_COLORS)]
+
+def _safe_json_loads(text):
+    try:
+        return json.loads(text)
+    except:
+        return None
+
+def _decode_base64url(value):
+    try:
+        padded = value + ("=" * ((4 - len(value) % 4) % 4))
+        return base64.urlsafe_b64decode(padded)
+    except:
+        return None
+
+def decode_jwt(token):
+    parts = token.strip().split(".")
+    if len(parts) < 2:
+        return None
+
+    header = _safe_json_loads(_decode_base64url(parts[0]))
+    payload = _safe_json_loads(_decode_base64url(parts[1]))
+    if not isinstance(payload, dict):
+        return None
+
+    identity_keys = ["sub", "email", "preferred_username", "username", "name", "client_id"]
+    identity = ""
+    for key in identity_keys:
+        if key in payload:
+            identity = "{}={}".format(key, payload[key])
+            break
+
+    claims = []
+    for key in ["iss", "aud", "scope", "scp", "roles", "role"]:
+        if key in payload:
+            value = payload[key]
+            if isinstance(value, list):
+                value = ",".join([str(v) for v in value])
+            claims.append("{}={}".format(key, value))
+
+    alg = ""
+    if isinstance(header, dict) and "alg" in header:
+        alg = "alg={}".format(header["alg"])
+
+    preview_parts = []
+    if alg:
+        preview_parts.append(alg)
+    if identity:
+        preview_parts.append(identity)
+    preview_parts.extend(claims[:3])
+
+    return {
+        "identity": identity,
+        "preview": "; ".join(preview_parts) if preview_parts else "JWT payload decoded"
+    }
+
+def summarize_header_text(header_text):
+    auth_type = "Custom headers"
+    identifier = ""
+    decoded_preview = ""
+    header_preview = " ".join(header_text.split())
+
+    jwt_match = re.search(r'Authorization:\s*Bearer\s+([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)', header_text, re.I)
+    if jwt_match:
+        auth_type = "Bearer JWT"
+        decoded = decode_jwt(jwt_match.group(1))
+        if decoded:
+            identifier = decoded["identity"]
+            decoded_preview = decoded["preview"]
+        else:
+            decoded_preview = "JWT-like bearer token, but payload could not be decoded"
+    elif re.search(r'Authorization:', header_text, re.I):
+        auth_type = "Authorization header"
+        auth_line = re.search(r'Authorization:\s*([^\r\n]+)', header_text, re.I)
+        if auth_line:
+            identifier = auth_line.group(1).split()[0]
+    elif re.search(r'Cookie:', header_text, re.I):
+        auth_type = "Cookie"
+        cookie_line = re.search(r'Cookie:\s*([^\r\n]+)', header_text, re.I)
+        if cookie_line:
+            cookie_names = []
+            jwt_previews = []
+            for cookie in cookie_line.group(1).split(";"):
+                if "=" in cookie:
+                    name, value = cookie.strip().split("=", 1)
+                    cookie_names.append(name)
+                    decoded = decode_jwt(value)
+                    if decoded:
+                        jwt_previews.append("{}: {}".format(name, decoded["preview"]))
+            identifier = ", ".join(cookie_names[:5])
+            if len(cookie_names) > 5:
+                identifier += "..."
+            decoded_preview = "; ".join(jwt_previews) if jwt_previews else "Opaque/encrypted cookie values"
+
+    return {
+        "auth_type": auth_type,
+        "identifier": identifier,
+        "decoded_preview": decoded_preview,
+        "header_preview": header_preview[:180]
+    }
+
+class UserSummaryTableModel(AbstractTableModel):
+    COLUMNS = ["", "User", "Auth Type", "Identifier", "Decoded Preview", "Header Preview"]
+
+    def __init__(self, user_tab):
+        self.user_tab = user_tab
+
+    def getColumnCount(self):
+        return len(self.COLUMNS)
+
+    def getRowCount(self):
+        return len(self.user_tab.get_ordered_user_ids())
+
+    def getColumnName(self, column):
+        return self.COLUMNS[column]
+
+    def getValueAt(self, row, column):
+        user_id = self.user_tab.get_user_id_at_row(row)
+        if user_id is None:
+            return ""
+
+        user_data = self.user_tab.user_tabs[user_id]
+        summary = summarize_header_text(user_data['headers_instance'].replaceString.getText())
+
+        if column == 0:
+            return " "
+        if column == 1:
+            return user_data['user_name']
+        if column == 2:
+            return summary["auth_type"]
+        if column == 3:
+            return summary["identifier"]
+        if column == 4:
+            return summary["decoded_preview"]
+        if column == 5:
+            return summary["header_preview"]
+        return ""
+
+class UserSummaryRenderer(DefaultTableCellRenderer):
+    def __init__(self, user_tab):
+        DefaultTableCellRenderer.__init__(self)
+        self.user_tab = user_tab
+
+    def getTableCellRendererComponent(self, table, value, isSelected, hasFocus, row, column):
+        comp = DefaultTableCellRenderer.getTableCellRendererComponent(self, table, value, isSelected, hasFocus, row, column)
+        model_row = table.convertRowIndexToModel(row)
+        user_id = self.user_tab.get_user_id_at_row(model_row)
+        if column == 0 and user_id is not None:
+            comp.setBackground(get_user_color(user_id))
+            comp.setForeground(get_user_color(user_id))
+            return comp
+        if isSelected:
+            comp.setBackground(table.getSelectionBackground())
+            comp.setForeground(table.getSelectionForeground())
+        else:
+            comp.setBackground(Color.WHITE)
+            comp.setForeground(Color.BLACK)
+        return comp
+
+class UserSummarySelectionListener(ListSelectionListener):
+    def __init__(self, user_tab):
+        self.user_tab = user_tab
+
+    def valueChanged(self, event):
+        if not event.getValueIsAdjusting():
+            self.user_tab.show_selected_user_from_table()
+
+class HeaderDocumentListener(DocumentListener):
+    def __init__(self, user_tab):
+        self.user_tab = user_tab
+
+    def insertUpdate(self, event):
+        self.user_tab.refresh_user_summary()
+
+    def removeUpdate(self, event):
+        self.user_tab.refresh_user_summary()
+
+    def changedUpdate(self, event):
+        self.user_tab.refresh_user_summary()
+
 class UserHeaders():
     DEFUALT_REPLACE_TEXT = "Cookie: Insert=injected; cookie=or;\nHeader: here"
 
-    def __init__(self, user_id, extender):
+    def __init__(self, user_id, extender, user_tab=None):
         self.user_id = user_id
         self._extender = extender
+        self.user_tab = user_tab
 
     def draw(self):
         self.headersPnl = JPanel()
@@ -36,6 +246,8 @@ class UserHeaders():
         self.replaceString = JTextArea(self.DEFUALT_REPLACE_TEXT, 5, 30)
         self.replaceString.setWrapStyleWord(True)
         self.replaceString.setLineWrap(True)
+        if self.user_tab:
+            self.replaceString.getDocument().addDocumentListener(HeaderDocumentListener(self.user_tab))
 
         self.scrollReplaceString = JScrollPane(self.replaceString)
         self.scrollReplaceString.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED)
@@ -110,12 +322,36 @@ class UserTab():
         self.renameUserBtn.addActionListener(RenameUserAction(self))
         buttonPanel.add(self.renameUserBtn)
         
+        self.userSummaryModel = UserSummaryTableModel(self)
+        self.userSummaryTable = JTable(self.userSummaryModel)
+        self.userSummaryTable.setDefaultRenderer(self.userSummaryTable.getColumnClass(0), UserSummaryRenderer(self))
+        self.userSummaryTable.setRowSelectionAllowed(True)
+        self.userSummaryTable.setSelectionMode(0)
+        self.userSummaryTable.getSelectionModel().addListSelectionListener(UserSummarySelectionListener(self))
+        self.userSummaryTable.getColumnModel().getColumn(0).setPreferredWidth(28)
+        self.userSummaryTable.getColumnModel().getColumn(0).setMaxWidth(32)
+        self.userSummaryTable.getColumnModel().getColumn(1).setPreferredWidth(120)
+        self.userSummaryTable.getColumnModel().getColumn(2).setPreferredWidth(130)
+        self.userSummaryTable.getColumnModel().getColumn(3).setPreferredWidth(180)
+        self.userSummaryTable.getColumnModel().getColumn(4).setPreferredWidth(360)
+        self.userSummaryTable.getColumnModel().getColumn(5).setPreferredWidth(420)
+        self.userSummaryScrollPane = JScrollPane(self.userSummaryTable)
+        self.userSummaryScrollPane.setMinimumSize(Dimension(1, 80))
+
+        self.userDetailPanel = JPanel(BorderLayout())
+        self.userDetailPanel.setMinimumSize(Dimension(1, 120))
+
+        self.userSplitPane = JSplitPane(JSplitPane.VERTICAL_SPLIT)
+        self.userSplitPane.setResizeWeight(0.35)
+        self.userSplitPane.setTopComponent(self.userSummaryScrollPane)
+        self.userSplitPane.setBottomComponent(self.userDetailPanel)
+
         self.userTabs = JTabbedPane()
         
         self.add_user()
         
         self._extender.userPanel.add(buttonPanel, BorderLayout.NORTH)
-        self._extender.userPanel.add(self.userTabs, BorderLayout.CENTER)
+        self._extender.userPanel.add(self.userSplitPane, BorderLayout.CENTER)
     
     def add_user(self):
         self.user_count += 1
@@ -133,7 +369,7 @@ class UserTab():
         
         userSubTabs = JTabbedPane()
         
-        user_headers = UserHeaders(self.user_count, self._extender)
+        user_headers = UserHeaders(self.user_count, self._extender, self)
         user_headers.draw()
 
         if self._extender.lastCookiesHeader:
@@ -168,6 +404,8 @@ class UserTab():
         self.userTabs.addTab(unique_user_name, userPanel)
         
         self.userTabs.setSelectedIndex(self.userTabs.getTabCount() - 1)
+        self.refresh_user_summary()
+        self.select_user_by_id(self.user_count)
 
         if hasattr(self._extender, 'tabs_instance') and self._extender.tabs_instance:
             self._extender.tabs_instance.createUserViewerTabs(self.user_count, unique_user_name)
@@ -202,6 +440,15 @@ class UserTab():
                 del self.user_tabs[user_id_to_remove]
 
                 self.userTabs.removeTabAt(selected_index)
+                self.refresh_user_summary()
+                next_index = min(selected_index, self.userTabs.getTabCount() - 1)
+                if next_index >= 0:
+                    self.userTabs.setSelectedIndex(next_index)
+                    self.select_user_by_id(self.get_user_id_at_row(next_index))
+                else:
+                    self.userDetailPanel.removeAll()
+                    self.userDetailPanel.revalidate()
+                    self.userDetailPanel.repaint()
 
                 if hasattr(self._extender, 'tabs_instance') and self._extender.tabs_instance:
                     self._extender.tabs_instance.removeUserViewerTabs(user_id_to_remove)
@@ -213,6 +460,8 @@ class UserTab():
         self.user_tabs.clear()
         del self.user_names[:]
         self.user_count = 0
+        if hasattr(self, 'userDetailPanel'):
+            self.userDetailPanel.removeAll()
 
         if hasattr(self._extender, 'user_viewers'):
             self._extender.user_viewers.clear()
@@ -221,6 +470,7 @@ class UserTab():
                 del self._extender.viewer_visibility[k]
 
         self.add_user()
+        self.refresh_user_summary()
         
     def duplicate_user(self):
         selected_index = self.userTabs.getSelectedIndex()
@@ -299,6 +549,7 @@ class UserTab():
                             self._extender.tabs_instance.renameUserViewerTabs(user_id, unique_name)
                         break
 
+                self.refresh_user_summary()
                 self.refreshTableStructure()
 
     def get_unique_name(self, name):
@@ -322,6 +573,56 @@ class UserTab():
             self._extender.tableModel.fireTableStructureChanged()
         if hasattr(self._extender, 'logTable'):
             self._extender.logTable.updateColumnWidths()
+
+    def get_ordered_user_ids(self):
+        return sorted(self.user_tabs.keys())
+
+    def get_user_id_at_row(self, row):
+        user_ids = self.get_ordered_user_ids()
+        if row is not None and row >= 0 and row < len(user_ids):
+            return user_ids[row]
+        return None
+
+    def get_row_for_user_id(self, user_id):
+        user_ids = self.get_ordered_user_ids()
+        if user_id in user_ids:
+            return user_ids.index(user_id)
+        return -1
+
+    def refresh_user_summary(self):
+        if hasattr(self, 'userSummaryModel'):
+            self.userSummaryModel.fireTableDataChanged()
+
+    def select_user_by_id(self, user_id):
+        row = self.get_row_for_user_id(user_id)
+        if row >= 0 and hasattr(self, 'userSummaryTable'):
+            self.userSummaryTable.setRowSelectionInterval(row, row)
+            self.show_user_detail(user_id)
+
+    def show_selected_user_from_table(self):
+        if not hasattr(self, 'userSummaryTable'):
+            return
+        selected = self.userSummaryTable.getSelectedRow()
+        if selected < 0:
+            return
+        model_row = self.userSummaryTable.convertRowIndexToModel(selected)
+        user_id = self.get_user_id_at_row(model_row)
+        if user_id is not None:
+            self.show_user_detail(user_id)
+
+    def show_user_detail(self, user_id):
+        if user_id not in self.user_tabs:
+            return
+
+        user_data = self.user_tabs[user_id]
+        self.userDetailPanel.removeAll()
+        self.userDetailPanel.add(user_data['panel'], BorderLayout.CENTER)
+        self.userDetailPanel.revalidate()
+        self.userDetailPanel.repaint()
+
+        index = self.userTabs.indexOfComponent(user_data['panel'])
+        if index >= 0:
+            self.userTabs.setSelectedIndex(index)
             
 class UserEnforcementDetector(EnforcementDetectors):
 

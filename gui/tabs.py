@@ -13,11 +13,13 @@ from javax.swing import JPopupMenu
 from javax.swing import JTabbedPane
 from javax.swing import JPanel
 from javax.swing import JButton
+from javax.swing import JToggleButton
 from javax.swing import JLabel
 from javax.swing import JCheckBoxMenuItem
 from javax.swing import ImageIcon
 from java.awt import GridLayout
 from java.awt import FlowLayout
+from java.awt import BorderLayout
 from java.awt import Toolkit
 from java.awt import Color as AwtColor
 from java.awt import RenderingHints
@@ -32,6 +34,7 @@ from burp import ITab
 from burp import IMessageEditorController
 
 from authorization.authorization import handle_message, retestAllRequests
+from gui.configuration_tab import toggleAutorizeState
 
 from thread import start_new_thread
 
@@ -55,6 +58,13 @@ class ITabImpl(ITab):
     def getUiComponent(self):
         return self._extender._splitpane
 
+class MainAutorizeToggle(ActionListener):
+    def __init__(self, extender):
+        self._extender = extender
+
+    def actionPerformed(self, event):
+        toggleAutorizeState(self._extender)
+
 class Tabs():
     def __init__(self, extender):
         self._extender = extender
@@ -72,11 +82,20 @@ class Tabs():
         self._extender.tableSorter.setRowFilter(rowFilter)
         self._extender.logTable.setRowSorter(self._extender.tableSorter)
 
-        self._extender._splitpane = JSplitPane(JSplitPane.HORIZONTAL_SPLIT)
-        self._extender._splitpane.setResizeWeight(1)
+        self._extender._splitpane = JSplitPane(JSplitPane.VERTICAL_SPLIT)
+        self._extender._splitpane.setResizeWeight(0.45)
         self._extender.scrollPane = JScrollPane(self._extender.logTable)
         self._extender.scrollPane.setMinimumSize(Dimension(1,1))
-        self._extender._splitpane.setLeftComponent(self._extender.scrollPane)
+
+        self._extender.tablePanel = JPanel(BorderLayout())
+        self._extender.tableToolbar = JPanel(FlowLayout(FlowLayout.LEFT, 5, 3))
+        self._extender.mainStartButton = JToggleButton("Autorize is off",
+                                                       actionPerformed=MainAutorizeToggle(self._extender).actionPerformed)
+        self._extender.mainStartButton.setToolTipText("Toggle Autorize interception")
+        self._extender.tableToolbar.add(self._extender.mainStartButton)
+        self._extender.tablePanel.add(self._extender.tableToolbar, BorderLayout.NORTH)
+        self._extender.tablePanel.add(self._extender.scrollPane, BorderLayout.CENTER)
+        self._extender._splitpane.setTopComponent(self._extender.tablePanel)
         self._extender.scrollPane.getVerticalScrollBar().addAdjustmentListener(AutoScrollListener(self._extender))
 
         copyURLitem = JMenuItem("Copy URL")
@@ -171,7 +190,7 @@ class Tabs():
                 user_name = self._extender.userTab.user_tabs[user_id]['user_name']
                 self.createUserViewerTabs(user_id, user_name)
 
-        self._extender.requests_panel = JPanel(GridLayout(0, 1))
+        self._extender.requests_panel = JPanel(GridLayout(1, 0))
         rebuildViewerPanel(self._extender)
 
         self._extender.tabs.addTab("Request/Response Viewers", self._extender.requests_panel)
@@ -193,7 +212,7 @@ class Tabs():
         self._extender.tabs.addTab("Configuration", self._extender._cfg_splitpane)
         self._extender.tabs.setSelectedIndex(1)
         self._extender.tabs.setMinimumSize(Dimension(1,1))
-        self._extender._splitpane.setRightComponent(self._extender.tabs)
+        self._extender._splitpane.setBottomComponent(self._extender.tabs)
 
         self._extender.tabs.addTab("Users", self._extender.userPanel)
 
