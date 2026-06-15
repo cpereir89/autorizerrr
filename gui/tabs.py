@@ -272,7 +272,7 @@ class Tabs():
         self._extender.requests_viewer_container = JPanel(BorderLayout())
         self._extender.requests_tools_panel = JPanel(FlowLayout(FlowLayout.LEFT, 5, 2))
         self._extender.highlightDiffsButton = JToggleButton("Highlight diffs")
-        self._extender.highlightDiffsButton.setToolTipText("Highlight matching lines in red and different lines in yellow")
+        self._extender.highlightDiffsButton.setToolTipText("Highlight matching lines in muted red and different lines in muted yellow")
         self._extender.highlightDiffsButton.addActionListener(ViewerToolAction(self._extender))
         self._extender.syncViewsButton = JToggleButton("Sync views")
         self._extender.syncViewsButton.setToolTipText("Synchronize vertical scrolling across visible request/response viewers")
@@ -400,8 +400,8 @@ class Tabs():
         try:
             text = text_component.getText()
             highlighter = text_component.getHighlighter()
-            same_painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(255, 170, 170))
-            diff_painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(255, 245, 120))
+            same_painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(95, 58, 58))
+            diff_painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(92, 84, 42))
             original_lines = original_text.splitlines()
             lines = text.splitlines(True)
             offset = 0
@@ -423,7 +423,7 @@ class Tabs():
         if not search:
             return
         search_lower = search.lower()
-        painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(255, 0, 255))
+        painter = DefaultHighlighter.DefaultHighlightPainter(AwtColor(92, 54, 104))
         for text_component in self.getVisibleViewerTextComponents():
             try:
                 text = text_component.getText()
