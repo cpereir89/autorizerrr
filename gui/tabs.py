@@ -6,6 +6,7 @@ from javax.swing.table import TableRowSorter
 from java.awt.event import AdjustmentListener
 from java.awt.event import ActionListener
 from java.awt.event import MouseAdapter
+from java.awt.event import ComponentAdapter
 from javax.swing import JSplitPane
 from javax.swing import JMenuItem
 from javax.swing import JScrollPane
@@ -17,7 +18,6 @@ from javax.swing import JToggleButton
 from javax.swing import JLabel
 from javax.swing import JCheckBoxMenuItem
 from javax.swing import ImageIcon
-from java.awt import GridLayout
 from java.awt import FlowLayout
 from java.awt import BorderLayout
 from java.awt import Toolkit
@@ -64,6 +64,14 @@ class MainAutorizeToggle(ActionListener):
 
     def actionPerformed(self, event):
         toggleAutorizeState(self._extender)
+
+class ViewerScrollResizeListener(ComponentAdapter):
+    def __init__(self, extender):
+        self._extender = extender
+
+    def componentResized(self, event):
+        if not getattr(self._extender, 'expanded_requests', 0):
+            rebuildViewerPanel(self._extender)
 
 class Tabs():
     def __init__(self, extender):
@@ -190,10 +198,14 @@ class Tabs():
                 user_name = self._extender.userTab.user_tabs[user_id]['user_name']
                 self.createUserViewerTabs(user_id, user_name)
 
-        self._extender.requests_panel = JPanel(GridLayout(1, 0))
+        self._extender.requests_panel = JPanel()
+        self._extender.requests_scrollpane = JScrollPane(self._extender.requests_panel)
+        self._extender.requests_scrollpane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED)
+        self._extender.requests_scrollpane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER)
+        self._extender.requests_scrollpane.getViewport().addComponentListener(ViewerScrollResizeListener(self._extender))
         rebuildViewerPanel(self._extender)
 
-        self._extender.tabs.addTab("Request/Response Viewers", self._extender.requests_panel)
+        self._extender.tabs.addTab("Request/Response Viewers", self._extender.requests_scrollpane)
 
         tabIndex = self._extender.tabs.indexOfTab("Request/Response Viewers")
         tabHeader = JPanel(FlowLayout(FlowLayout.LEFT, 5, 0))
@@ -454,20 +466,6 @@ class ShowVisibilityPopup(ActionListener):
     def actionPerformed(self, e):
         popup = JPopupMenu()
 
-        if hasattr(self._extender, 'user_viewers'):
-            for user_id in sorted(self._extender.user_viewers.keys()):
-                viewer = self._extender.user_viewers[user_id]
-                key = 'user_{}'.format(user_id)
-                item = JCheckBoxMenuItem(
-                    "{} Request/Response".format(viewer['user_name']),
-                    self._extender.viewer_visibility.get(key, True)
-                )
-                item.addActionListener(ViewerVisibilityAction(self._extender, key))
-                popup.add(item)
-
-        if popup.getComponentCount() > 0:
-            popup.addSeparator()
-
         orig_item = JCheckBoxMenuItem(
             "Original Request/Response",
             self._extender.viewer_visibility.get('original', True)
@@ -481,6 +479,19 @@ class ShowVisibilityPopup(ActionListener):
         )
         unauth_item.addActionListener(ViewerVisibilityAction(self._extender, 'unauthenticated'))
         popup.add(unauth_item)
+
+        if hasattr(self._extender, 'user_viewers'):
+            if len(self._extender.user_viewers) > 0:
+                popup.addSeparator()
+            for user_id in sorted(self._extender.user_viewers.keys()):
+                viewer = self._extender.user_viewers[user_id]
+                key = 'user_{}'.format(user_id)
+                item = JCheckBoxMenuItem(
+                    "{} Request/Response".format(viewer['user_name']),
+                    self._extender.viewer_visibility.get(key, True)
+                )
+                item.addActionListener(ViewerVisibilityAction(self._extender, key))
+                popup.add(item)
 
         btn = e.getSource()
         popup.show(btn, 0, btn.getHeight())
