@@ -13,7 +13,7 @@ class BurpExtender(IBurpExtender, IHttpListener, IProxyListener, IExtensionState
         self._callbacks = callbacks
         self._helpers = callbacks.getHelpers()
         
-        callbacks.setExtensionName("Autorize")
+        callbacks.setExtensionName("Autorizerrr")
         
         self.executor = Executors.newFixedThreadPool(10)
         callbacks.registerExtensionStateListener(self)
@@ -49,4 +49,4 @@ class BurpExtender(IBurpExtender, IHttpListener, IProxyListener, IExtensionState
     #
     def extensionUnloaded(self):
         self.executor.shutdown()
-        print "Autorize extension unloaded."
+        print "Autorizerrr extension unloaded."

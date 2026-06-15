@@ -286,8 +286,8 @@ class Export():
     def exportToHTML(self):
         parentFrame = JFrame()
         fileChooser = JFileChooser()
-        fileChooser.setSelectedFile(File("AutorizeReport.html"))
-        fileChooser.setDialogTitle("Save Autorize Report")
+        fileChooser.setSelectedFile(File("AutorizerrrReport.html"))
+        fileChooser.setDialogTitle("Save Autorizerrr Report")
         userSelection = fileChooser.showSaveDialog(parentFrame)
         if userSelection == JFileChooser.APPROVE_OPTION:
             fileToSave = fileChooser.getSelectedFile()
@@ -303,7 +303,7 @@ class Export():
         
         header_html += "</tr></thead>"
         
-        htmlContent = """<html><title>Autorize Report by Barak Tawily</title>
+        htmlContent = """<html><title>Autorizerrr Report - Modded by 4nP3r3x0</title>
         <style>
         .datagrid table { border-collapse: collapse; text-align: left; width: 100%; }
             .datagrid {font: normal 12px/150% Arial, Helvetica, sans-serif; background: #fff; overflow: hidden; border: 1px solid #006699; -webkit-border-radius: 3px; -moz-border-radius: 3px; border-radius: 3px; }
@@ -328,7 +328,8 @@ class Export():
         }
         </style>
         <body>
-        <h1>Autorize Report<h1>
+        <h1>Autorizerrr Report</h1>
+        <p>Original Autorize by Barak Tawily. Modded by 4nP3r3x0.</p>
         <div class="datagrid"><table>""" + header_html + """
         <tbody>"""
         
@@ -405,8 +406,8 @@ class Export():
     def exportToCSV(self):
         parentFrame = JFrame()
         fileChooser = JFileChooser()
-        fileChooser.setSelectedFile(File("AutorizeReport.csv"))
-        fileChooser.setDialogTitle("Save Autorize Report")
+        fileChooser.setSelectedFile(File("AutorizerrrReport.csv"))
+        fileChooser.setDialogTitle("Save Autorizerrr Report")
         userSelection = fileChooser.showSaveDialog(parentFrame)
         if userSelection == JFileChooser.APPROVE_OPTION:
             fileToSave = fileChooser.getSelectedFile()

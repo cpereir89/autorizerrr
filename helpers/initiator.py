@@ -82,8 +82,9 @@ class Initiator():
         self._extender._callbacks.customizeUiComponent(self._extender.filtersTabs)
 
     def print_welcome_message(self):
-        print("""Thank you for installing Autorize v{} extension
+        print("""Thank you for installing Autorizerrr v{} extension
 Created by Barak Tawily
+Modded by 4nP3r3x0
 Contributors: {}
 
-Github:\nhttps://github.com/Quitten/Autorize""".format(self._extender.version, ", ".join(self.contributors)))
+Github:\nhttps://github.com/cpereir89/autorizerrr""".format(self._extender.version, ", ".join(self.contributors)))

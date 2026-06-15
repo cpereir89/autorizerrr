@@ -34,7 +34,7 @@ from burp import ITab
 from burp import IMessageEditorController
 
 from authorization.authorization import handle_message, retestAllRequests
-from gui.configuration_tab import toggleAutorizeState
+from gui.configuration_tab import toggleAutorizerrrState
 
 from thread import start_new_thread
 
@@ -53,17 +53,17 @@ class ITabImpl(ITab):
         self._extender = extender
 
     def getTabCaption(self):
-        return "Autorize"
+        return "Autorizerrr"
     
     def getUiComponent(self):
         return self._extender._splitpane
 
-class MainAutorizeToggle(ActionListener):
+class MainAutorizerrrToggle(ActionListener):
     def __init__(self, extender):
         self._extender = extender
 
     def actionPerformed(self, event):
-        toggleAutorizeState(self._extender)
+        toggleAutorizerrrState(self._extender)
 
 class ViewerScrollResizeListener(ComponentAdapter):
     def __init__(self, extender):
@@ -97,9 +97,9 @@ class Tabs():
 
         self._extender.tablePanel = JPanel(BorderLayout())
         self._extender.tableToolbar = JPanel(FlowLayout(FlowLayout.LEFT, 5, 3))
-        self._extender.mainStartButton = JToggleButton("Autorize is off",
-                                                       actionPerformed=MainAutorizeToggle(self._extender).actionPerformed)
-        self._extender.mainStartButton.setToolTipText("Toggle Autorize interception")
+        self._extender.mainStartButton = JToggleButton("Autorizerrr is off",
+                                                       actionPerformed=MainAutorizerrrToggle(self._extender).actionPerformed)
+        self._extender.mainStartButton.setToolTipText("Toggle Autorizerrr interception")
         self._extender.tableToolbar.add(self._extender.mainStartButton)
         self._extender.tablePanel.add(self._extender.tableToolbar, BorderLayout.NORTH)
         self._extender.tablePanel.add(self._extender.scrollPane, BorderLayout.CENTER)
@@ -294,7 +294,7 @@ class SendRequestRepeater(ActionListener):
         proto = request.getHttpService().getProtocol()
         secure = True if proto == "https" else False
 
-        self._callbacks.sendToRepeater(host, port, secure, request.getRequest(), "Autorize")
+        self._callbacks.sendToRepeater(host, port, secure, request.getRequest(), "Autorizerrr")
 
 class SendResponseComparer(ActionListener):
     def __init__(self, extender, callbacks):
@@ -545,7 +545,7 @@ class SendRequestRepeater(ActionListener):
         proto = request.getHttpService().getProtocol()
         secure = True if proto == "https" else False
 
-        self._callbacks.sendToRepeater(host, port, secure, request.getRequest(), "Autorize")
+        self._callbacks.sendToRepeater(host, port, secure, request.getRequest(), "Autorizerrr")
 
 class SendRequestToRepeaterAction(AbstractAction):
     def __init__(self, extender, callbacks):
@@ -580,7 +580,7 @@ class SendRequestToRepeaterAction(AbstractAction):
         proto = request.getHttpService().getProtocol()
         secure = True if proto == "https" else False
 
-        self._callbacks.sendToRepeater(host, port, secure, request.getRequest(), "Autorize")
+        self._callbacks.sendToRepeater(host, port, secure, request.getRequest(), "Autorizerrr")
 
 class CopySelectedURLToClipBoard(AbstractAction):
     def __init__(self, extender, callbacks):

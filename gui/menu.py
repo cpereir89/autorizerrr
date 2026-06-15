@@ -20,9 +20,9 @@ class MenuImpl(IContextMenuFactory):
         responses = invocation.getSelectedMessages()
         if responses > 0:
             ret = LinkedList()
-            requestMenuItem = JMenuItem("Send request to Autorize")
-            cookieMenuItem = JMenuItem("Send Cookie header to Autorize")
-            authMenuItem = JMenuItem("Send Authorization header to Autorize")
+            requestMenuItem = JMenuItem("Send request to Autorizerrr")
+            cookieMenuItem = JMenuItem("Send Cookie header to Autorizerrr")
+            authMenuItem = JMenuItem("Send Authorization header to Autorizerrr")
 
             for response in responses:
                 requestMenuItem.addActionListener(HandleMenuItems(self._extender,response, "request"))

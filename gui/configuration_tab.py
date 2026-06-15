@@ -16,8 +16,8 @@ from java.awt import Dimension
 from table import UpdateTableEDT
 
 
-def setAutorizeState(extender, enabled):
-    label = "Autorize is on" if enabled else "Autorize is off"
+def setAutorizerrrState(extender, enabled):
+    label = "Autorizerrr is on" if enabled else "Autorizerrr is off"
     selected = True if enabled else False
 
     extender.intercept = 1 if enabled else 0
@@ -31,8 +31,8 @@ def setAutorizeState(extender, enabled):
         extender.mainStartButton.setSelected(selected)
 
 
-def toggleAutorizeState(extender):
-    setAutorizeState(extender, not bool(extender.intercept))
+def toggleAutorizerrrState(extender):
+    setAutorizerrrState(extender, not bool(extender.intercept))
 
 
 class ClearTableRunnable(Runnable):
@@ -57,7 +57,7 @@ class ConfigurationTab():
     def draw(self):
         """  init configuration tab
         """
-        self._extender.startButton = JToggleButton("Autorize is off",
+        self._extender.startButton = JToggleButton("Autorizerrr is off",
                                     actionPerformed=self.startOrStop)
         self._extender.startButton.setBounds(10, 20, 230, 30)
 
@@ -225,7 +225,7 @@ class ConfigurationTab():
         self._extender._cfg_splitpane.setLeftComponent(self.config_pnl)
 
     def startOrStop(self, event):
-        toggleAutorizeState(self._extender)
+        toggleAutorizerrrState(self._extender)
     
     def clearTable(self, event):
         # Run on executor so the EDT never blocks on _lock (avoids UI freeze)
