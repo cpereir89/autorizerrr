@@ -18,6 +18,7 @@ from javax.swing import JToggleButton
 from javax.swing import JLabel
 from javax.swing import JCheckBoxMenuItem
 from javax.swing import ImageIcon
+from javax.swing.plaf.basic import BasicScrollBarUI
 from java.awt import FlowLayout
 from java.awt import BorderLayout
 from java.awt import Toolkit
@@ -72,6 +73,27 @@ class ViewerScrollResizeListener(ComponentAdapter):
     def componentResized(self, event):
         if not getattr(self._extender, 'expanded_requests', 0):
             rebuildViewerPanel(self._extender)
+
+class LightHorizontalScrollBarUI(BasicScrollBarUI):
+    def configureScrollBarColors(self):
+        self.thumbColor = AwtColor(185, 185, 185)
+        self.thumbDarkShadowColor = AwtColor(165, 165, 165)
+        self.thumbHighlightColor = AwtColor(225, 225, 225)
+        self.thumbLightShadowColor = AwtColor(205, 205, 205)
+        self.trackColor = AwtColor(245, 245, 245)
+        self.trackHighlightColor = AwtColor(235, 235, 235)
+
+def styleViewerHorizontalScrollBar(scrollbar):
+    scrollbar.setPreferredSize(Dimension(0, 18))
+    scrollbar.setMinimumSize(Dimension(0, 18))
+    scrollbar.setUnitIncrement(24)
+    scrollbar.setBlockIncrement(360)
+    scrollbar.setBackground(AwtColor(245, 245, 245))
+    scrollbar.setVisible(True)
+    try:
+        scrollbar.setUI(LightHorizontalScrollBarUI())
+    except:
+        pass
 
 class Tabs():
     def __init__(self, extender):
@@ -200,12 +222,17 @@ class Tabs():
 
         self._extender.requests_panel = JPanel()
         self._extender.requests_scrollpane = JScrollPane(self._extender.requests_panel)
-        self._extender.requests_scrollpane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED)
+        self._extender.requests_scrollpane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER)
         self._extender.requests_scrollpane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER)
         self._extender.requests_scrollpane.getViewport().addComponentListener(ViewerScrollResizeListener(self._extender))
+        self._extender.requests_viewer_container = JPanel(BorderLayout())
+        self._extender.requests_horizontal_scrollbar = self._extender.requests_scrollpane.getHorizontalScrollBar()
+        styleViewerHorizontalScrollBar(self._extender.requests_horizontal_scrollbar)
+        self._extender.requests_viewer_container.add(self._extender.requests_horizontal_scrollbar, BorderLayout.NORTH)
+        self._extender.requests_viewer_container.add(self._extender.requests_scrollpane, BorderLayout.CENTER)
         rebuildViewerPanel(self._extender)
 
-        self._extender.tabs.addTab("Request/Response Viewers", self._extender.requests_scrollpane)
+        self._extender.tabs.addTab("Request/Response Viewers", self._extender.requests_viewer_container)
 
         tabIndex = self._extender.tabs.indexOfTab("Request/Response Viewers")
         tabHeader = JPanel(FlowLayout(FlowLayout.LEFT, 5, 0))
